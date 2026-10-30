@@ -634,7 +634,32 @@ mod tests {
         let canvas = map_cx.debug_bounds("region-canvas").unwrap();
         let bar = map_cx.debug_bounds(bar_id).unwrap();
         assert!(bar.left() >= canvas.left() && bar.right() <= canvas.right());
-        assert!((bar.center().y - canvas.center().y).abs() < px(2.));
+        assert!(
+            (bar.center().y - canvas.center().y).abs() < px(2.),
+            "Focused bar {bar:?} must be centered in canvas {canvas:?}"
+        );
+        // Toolbar/footer wrapping changes the canvas height across fonts and
+        // window sizes. Keep the focused span centered after layout settles.
+        for width in [900., 700., 1300.] {
+            map_cx.simulate_resize(size(px(width), px(600.)));
+            map_cx.run_until_parked();
+            let canvas = map_cx.debug_bounds("region-canvas").unwrap();
+            let bar = map_cx.debug_bounds(bar_id).unwrap();
+            assert!(
+                (bar.center().y - canvas.center().y).abs() < px(2.),
+                "At width {width}: focused bar {bar:?} must be centered in canvas {canvas:?}"
+            );
+        }
+        click(&mut map_cx, "region-zoom-in");
+        let camera = map.read_with(&map_cx, |m, _| m.camera);
+        map_cx.simulate_resize(size(px(900.), px(700.)));
+        map_cx.run_until_parked();
+        let after = map.read_with(&map_cx, |m, _| m.camera);
+        assert_eq!(
+            (camera.x, camera.y, camera.zoom),
+            (after.x, after.y, after.zoom),
+            "Resizing must preserve a manually adjusted camera"
+        );
         click(&mut map_cx, "arena-fit");
         assert!(map.read_with(&map_cx, |m, _| m.axis_span) > 0x1_0000_0000);
         click(&mut map_cx, "region-focus");

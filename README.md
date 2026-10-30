@@ -74,6 +74,10 @@ ctest --test-dir build -C Release --output-on-failure
 Install these development libraries and your Vulkan GPU driver. Both X11 and
 Wayland are enabled. Running the GUI requires a graphical session.
 
+The Linux GUI dependency configuration pins `libc` to 0.2.189: GPUI 0.2.2
+indirectly depends on `xattr` 0.2.3, which uses the Linux `ENOATTR` alias
+removed in `libc` 0.2.190. Keep this pin until that dependency is updated.
+
 ```sh
 sudo apt-get update
 sudo apt-get install -y build-essential cmake clang libclang-dev pkg-config \
@@ -257,6 +261,8 @@ detail windows, and independent selection in a detached stream window.
 They also check first-frame camera/node geometry, sidebar toggling, blank clicks
 versus dragging, and selected-node visibility when opening/resizing the sidebar,
 including graph boundaries sharing the same tensor ID.
+These interaction tests use GPUI's test platform and run without a visible
+desktop session, including on GitHub Actions.
 Arena regressions cover multiple buffers, reserved entry 0, reused offsets,
 unknown/overflowing sizes, bounded shapes, initialized mutable tensors, and
 click-to-focus allocation links above 4 GiB with fit/copy controls.

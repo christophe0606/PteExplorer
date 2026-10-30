@@ -560,7 +560,7 @@ pub(super) struct RegionMap {
     pub selected: Option<usize>,
     pub detail: Entity<DetailPanel>,
     fit_pending: bool,
-    focus_pending: bool,
+    auto_focus: bool,
     pub axis_start: u64,
     pub axis_span: u64,
 }
@@ -597,7 +597,7 @@ impl RegionMap {
             selected: None,
             detail,
             fit_pending: true,
-            focus_pending: false,
+            auto_focus: false,
             axis_start: 0,
             axis_span,
         }
@@ -630,10 +630,11 @@ impl RegionMap {
         };
         let mut map = Self::new(ranges, cx);
         map.select_range(index, cx);
-        map.focus_pending = true;
+        map.auto_focus = true;
         map
     }
     fn select_range(&mut self, i: usize, cx: &mut Context<Self>) {
+        self.auto_focus = false;
         self.selected = Some(i);
         let r = &self.ranges[i];
         if let Some(arena) = r.arena {
@@ -714,6 +715,9 @@ impl RegionMap {
             .count();
         72. + group as f32 * 72. + (prior + within) as f32 * 32.
     }
+    fn bar_height(&self, i: usize) -> f32 {
+        (24. * self.camera.zoom).max(if self.selected == Some(i) { 14. } else { 2. })
+    }
     pub fn focus_selected(&mut self) {
         let Some(i) = self.selected else {
             return;
@@ -730,9 +734,10 @@ impl RegionMap {
         self.camera.zoom = zoom;
         // Leave a fixed label column beside the focused byte span.
         self.camera.x = (f32::from(b.size.width) + 130.) / 2. - center as f32 * zoom;
-        self.camera.y = f32::from(b.size.height) / 2. - (self.row_y(i) + 12.) * zoom;
+        self.camera.y =
+            f32::from(b.size.height) / 2. - self.row_y(i) * zoom - self.bar_height(i) / 2.;
         self.fit_pending = false;
-        self.focus_pending = false;
+        self.auto_focus = true;
     }
     fn fit_arena(&mut self) {
         let Some(i) = self.selected else {
@@ -751,9 +756,11 @@ impl RegionMap {
         let b = self.viewport.get();
         self.camera.zoom = ((f32::from(b.size.width) - 40.) / 1020.).clamp(0.25, 1.);
         self.camera.x = 20.;
-        self.camera.y = f32::from(b.size.height) / 2. - (self.row_y(i) + 12.) * self.camera.zoom;
+        self.camera.y = f32::from(b.size.height) / 2.
+            - self.row_y(i) * self.camera.zoom
+            - self.bar_height(i) / 2.;
         self.fit_pending = false;
-        self.focus_pending = false;
+        self.auto_focus = false;
     }
     fn dimensions(&self) -> (f32, f32) {
         (
@@ -770,6 +777,7 @@ impl RegionMap {
             .max(1)
     }
     fn fit(&mut self) {
+        self.auto_focus = false;
         self.axis_start = 0;
         self.axis_span = self.max_end();
         let (width, height) = self.dimensions();
@@ -785,80 +793,15 @@ impl RegionMap {
         );
     }
     fn zoom(&mut self, zoom: f32) {
+        self.auto_focus = false;
         let b = self.viewport.get();
         self.camera.zoom_at(
             zoom,
             (f32::from(b.size.width) / 2., f32::from(b.size.height) / 2.),
         );
     }
-}
-impl Render for RegionMap {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let arena_view = self.arena_view;
-        if self.fit_pending && self.viewport.get().size.width > px(0.) {
-            if self.focus_pending {
-                self.focus_selected();
-            } else {
-                self.fit();
-            }
-            self.fit_pending = false;
-        }
-        let bounds = self.viewport.clone();
-        let view = cx.entity().downgrade();
-        let mut area = div()
-            .id("region-canvas")
-            .debug_selector(|| "region-canvas".into())
-            .relative()
-            .flex_1()
-            .min_h_0()
-            .overflow_hidden()
-            .bg(rgb(0x0d1721))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, e: &MouseDownEvent, _, _| {
-                    this.drag = Some(e.position);
-                    this.moved = false;
-                }),
-            )
-            .on_mouse_move(cx.listener(|this, e: &MouseMoveEvent, _, cx| {
-                if e.pressed_button == Some(MouseButton::Left) {
-                    if let Some(last) = this.drag {
-                        let d = e.position - last;
-                        if f32::from(d.x).abs() + f32::from(d.y).abs() > 1. {
-                            this.moved = true;
-                            this.camera.x += f32::from(d.x);
-                            this.camera.y += f32::from(d.y);
-                            cx.notify();
-                        }
-                        this.drag = Some(e.position);
-                    }
-                } else {
-                    this.drag = None;
-                }
-            }))
-            .on_scroll_wheel(cx.listener(|this, e: &ScrollWheelEvent, _, cx| {
-                let local = e.position - this.viewport.get().origin;
-                let d = e.delta.pixel_delta(px(24.));
-                this.camera.zoom_at(
-                    this.camera.zoom * (f32::from(d.y) * 0.003).exp(),
-                    (f32::from(local.x), f32::from(local.y)),
-                );
-                cx.notify();
-            }))
-            .child(
-                canvas(
-                    move |b, _, cx| {
-                        let changed = bounds.get().size != b.size;
-                        bounds.set(b);
-                        if changed {
-                            let _ = view.update(cx, |_, cx| cx.notify());
-                        }
-                    },
-                    |_, _, _, _| {},
-                )
-                .absolute()
-                .size_full(),
-            );
+    fn range_layer(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let mut area = div().relative().size_full();
         let mut y = 32.;
         let z = self.camera.zoom;
         let byte_scale = 800. / self.axis_span as f64;
@@ -897,11 +840,7 @@ impl Render for RegionMap {
                             .left(px(x))
                             .top(px(top))
                             .w(px(width))
-                            .h(px((24. * z).max(if self.selected == Some(i) {
-                                14.
-                            } else {
-                                2.
-                            })))
+                            .h(px(self.bar_height(i)))
                             .rounded_sm()
                             .bg(rgb(memory_color(range.space())))
                             .border_2()
@@ -937,12 +876,104 @@ impl Render for RegionMap {
             y += 32.;
         }
         if self.ranges.is_empty() {
-            area = area.child(div().p_4().child(if arena_view {
+            area = area.child(div().p_4().child(if self.arena_view {
                 "No planned tensor allocations are recorded for this method."
             } else {
                 "No memory spans are recorded in this stream."
             }));
         }
+        area
+    }
+}
+impl Render for RegionMap {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let arena_view = self.arena_view;
+        let view = cx.entity().downgrade();
+        let area = div()
+            .id("region-canvas")
+            .debug_selector(|| "region-canvas".into())
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .overflow_hidden()
+            .bg(rgb(0x0d1721))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, e: &MouseDownEvent, _, _| {
+                    this.drag = Some(e.position);
+                    this.moved = false;
+                }),
+            )
+            .on_mouse_move(cx.listener(|this, e: &MouseMoveEvent, _, cx| {
+                if e.pressed_button == Some(MouseButton::Left) {
+                    if let Some(last) = this.drag {
+                        let d = e.position - last;
+                        if f32::from(d.x).abs() + f32::from(d.y).abs() > 1. {
+                            this.moved = true;
+                            this.auto_focus = false;
+                            this.camera.x += f32::from(d.x);
+                            this.camera.y += f32::from(d.y);
+                            cx.notify();
+                        }
+                        this.drag = Some(e.position);
+                    }
+                } else {
+                    this.drag = None;
+                }
+            }))
+            .on_scroll_wheel(cx.listener(|this, e: &ScrollWheelEvent, _, cx| {
+                this.auto_focus = false;
+                let local = e.position - this.viewport.get().origin;
+                let d = e.delta.pixel_delta(px(24.));
+                this.camera.zoom_at(
+                    this.camera.zoom * (f32::from(d.y) * 0.003).exp(),
+                    (f32::from(local.x), f32::from(local.y)),
+                );
+                cx.notify();
+            }))
+            .child(
+                canvas(
+                    move |bounds, window, cx| {
+                        let mut layer = view
+                            .update(cx, |this, cx| {
+                                let changed = this.viewport.get().size != bounds.size;
+                                this.viewport.set(bounds);
+                                if this.fit_pending || (this.auto_focus && changed) {
+                                    // Use this frame's measured canvas, including
+                                    // any toolbar/footer wrapping, to place bars.
+                                    if this.auto_focus {
+                                        this.focus_selected();
+                                    } else {
+                                        this.fit();
+                                    }
+                                    this.fit_pending = false;
+                                    cx.notify();
+                                }
+                                this.range_layer(cx).into_any_element()
+                            })
+                            .ok();
+                        if let Some(layer) = &mut layer {
+                            layer.prepaint_as_root(
+                                bounds.origin,
+                                size(
+                                    AvailableSpace::Definite(bounds.size.width),
+                                    AvailableSpace::Definite(bounds.size.height),
+                                ),
+                                window,
+                                cx,
+                            );
+                        }
+                        layer
+                    },
+                    |_, layer, window, cx| {
+                        if let Some(mut layer) = layer {
+                            layer.paint(window, cx);
+                        }
+                    },
+                )
+                .absolute()
+                .size_full(),
+            );
         let mut legend = div()
             .flex()
             .flex_wrap()
