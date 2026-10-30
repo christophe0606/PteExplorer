@@ -1,5 +1,13 @@
 # PTE Explorer
 
+[![Windows CI](https://img.shields.io/github/check-runs/christophe0606/PteExplorer/main?nameFilter=native%20%28windows-latest%29&label=Windows%20CI)](https://github.com/christophe0606/PteExplorer/actions/workflows/build.yml?query=branch%3Amain)
+[![macOS CI](https://img.shields.io/github/check-runs/christophe0606/PteExplorer/main?nameFilter=native%20%28macos-latest%29&label=macOS%20CI)](https://github.com/christophe0606/PteExplorer/actions/workflows/build.yml?query=branch%3Amain)
+[![Linux CI](https://img.shields.io/github/check-runs/christophe0606/PteExplorer/main?nameFilter=native%20%28ubuntu-24.04%29&label=Linux%20CI)](https://github.com/christophe0606/PteExplorer/actions/workflows/build.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/christophe0606/PteExplorer?display_name=tag&sort=date&label=release)](https://github.com/christophe0606/PteExplorer/releases/latest)
+
+Platform badges show each native build and test result for the latest commit on
+`main`. The release badge shows the latest published release version.
+
 A native Rust explorer for ExecuTorch `.pte` files, rendered on the GPU with
 [GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui) 0.2.2.
 Supports Ethos-U55, U65 and U85. No Python, ExecuTorch runtime, Vela installation
@@ -15,6 +23,47 @@ The TFLite model was extracted without modification from
 [Arm ML Eval Kit CMSIS examples](https://github.com/Arm-Examples/mlek-cmsis-pack-examples/tree/main/object-detection),
 then converted to ExecuTorch. See [model attribution and source links](THIRD_PARTY.md#example-model)
 for details.
+
+## Downloads and releases
+
+Each native CI build uploads a separate executable archive to the
+[Build workflow](https://github.com/christophe0606/PteExplorer/actions/workflows/build.yml).
+Open a run and download the archive under **Artifacts** (GitHub sign-in required).
+Artifacts are retained for 30 days and are uploaded before tests, so a successful
+build remains downloadable even if its tests subsequently fail.
+
+| Download | Platform |
+| --- | --- |
+| `pte-explorer-windows-x64.zip` | Windows x64 |
+| `pte-explorer-macos-arm64.tar.gz` | macOS on Apple Silicon |
+| `pte-explorer-linux-x64.tar.gz` | Linux x64, built on Ubuntu 24.04 |
+
+Extract the archive and run `bin/pte-explorer.exe` on Windows or
+`bin/pte-explorer` on macOS/Linux inside the extracted folder. Each archive also
+contains this README, the project license, and third-party notices. Bring your
+own `.pte` model. GPU and system-library prerequisites below still apply;
+these archives are executables with documentation, rather than installers.
+The macOS executable is unsigned and is not notarized.
+
+To prepare a release, first commit and push the intended changes, then tag that
+commit with a version such as `v0.1.0` and push the tag:
+
+```sh
+git tag -a v0.1.0 -m "PTE Explorer v0.1.0"
+git push origin v0.1.0
+```
+
+After all three native builds and their tests pass, the same workflow creates a
+**draft release** with the three archives attached separately and generated
+release notes. Open [Releases](https://github.com/christophe0606/PteExplorer/releases),
+edit the draft, and click **Publish release** to make the downloads public.
+Re-running a tag workflow updates its existing draft; it refuses to overwrite a
+published release. Published release assets are separate from the temporary
+Actions artifacts and remain available after those artifacts expire.
+
+To package an existing local Release build for the current host, run
+`./tools/package-release.ps1` from PowerShell in the repository root. Use
+`-BuildDirectory` and `-OutputDirectory` to override `build` and `dist`.
 
 ## Build from a fresh clone
 
