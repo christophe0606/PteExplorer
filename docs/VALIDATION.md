@@ -3,6 +3,43 @@
 This records observed evidence and remaining checks. It is not a claim that every
 supported operating system has been tested.
 
+## Native macOS app validation (2026-10-30)
+
+The CMake Debug and Release GUI builds produced `.app` bundles on an Apple
+Silicon Mac. The bundle contains an executable, Info.plist, document-type
+registration, and the project's graph icon in `.icns` format. Its ad hoc code
+signature and property list passed Apple's verification tools.
+
+Native desktop checks launched the bundle without a terminal, inspected its
+application/File/Window menu bar, and exercised Quit and Command-O. The native
+picker opened `model.pte` and its graph rendered correctly. Finder recognized
+PTE Explorer as a `.pte` handler; Open With delivered the model to the app.
+Closing the model window and reopening the app produced an empty window.
+
+The existing macOS CTest core and GUI suites passed. After correcting menu
+handlers to defer updates to the window that dispatches the action, all fifteen
+GUI tests passed, including a new regression that closes the dispatching window.
+The sixteen core tests passed. The headless CMake build and executable install
+also passed on macOS.
+
+The macOS bundle helper was exercised locally with `CI=true` and nonexistent certificate
+and notary credentials. It created a valid ad hoc signed bundle without using
+an installed certificate or attempting notarization. Certificate signing and
+optional notarization are restricted to local packaging. No signing identity or
+credential value was found in repository source files.
+
+The Release app was signed locally using an environment-provided identity in
+the existing Keychain, with hardened runtime enabled. CMake installed it to
+`dist/PTE Explorer.app`; its files matched the signed build. The installed,
+locally signed Release app also launched through the native application launcher
+and exposed the application/File/Window menu bar. The macOS tar.gz archive was
+extracted into a temporary directory and its certificate signature
+verified successfully with access to macOS trust services. Runtime dependencies
+are Apple system libraries/frameworks. No notarization credentials were present,
+so this build is not notarized. The PowerShell packaging wrapper was reviewed
+but not executed on this Mac; its CMake install/archive operations and macOS
+bundle helper were exercised directly.
+
 ## Implemented scope
 
 | Requirement | Implementation | Evidence |
@@ -59,13 +96,13 @@ Release build passed with Windows SDK 10.0.26100.0.
 
 ## Limits and manual verification
 
-* Visually inspect the GPU-rendered main/delegate/detached windows, including
-  scrolling and narrow-window layout. This session has no callable desktop
-  screenshot/input tools. A responsive window alone does not prove visual quality.
-* Validation from Windows is limited to Windows by user instruction, recorded in
-  `AGENTS.md`. Do not attempt Linux/macOS builds or runs from this environment;
-  do not use Docker. Cross-platform CMake configuration and instructions remain
-  maintained. Other native hosts have not been validated here.
+* Broader visual inspection of delegate/detached windows, scrolling, and narrow
+  layouts remains useful. The native macOS checks above cover the main model
+  window and application integration.
+* Each validation run is restricted to its native host by `AGENTS.md`; Docker
+  and cross-platform validation are prohibited. The earlier evidence below is
+  from Windows, and the macOS evidence is recorded separately above. Linux has
+  not been validated in these local sessions.
 * Exercise real U55 and U65 PTE files. Their architecture-specific synthetic
   command fixtures pass; the supplied real model targets U85.
 * Expand semantic coverage for branch-dependent command streams. Current state

@@ -3,4 +3,5 @@
 /dist/
 /research/
 *.log
+.DS_Store
 

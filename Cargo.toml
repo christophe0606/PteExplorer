@@ -7,7 +7,7 @@ description = "GPU accelerated ExecuTorch and Ethos-U command stream explorer"
 
 [features]
 default = ["gui"]
-gui = ["dep:gpui", "dep:windows", "dep:libc"]
+gui = ["dep:gpui", "dep:windows", "dep:libc", "dep:url"]
 ui-tests = ["gui", "gpui/test-support"]
 
 [dependencies]
@@ -15,6 +15,9 @@ anyhow = "1"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 gpui = { version = "=0.2.2", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+url = { version = "2", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # GPUI 0.2.2 -> gpui_http_client -> zed-async-tar -> xattr 0.2.3 uses

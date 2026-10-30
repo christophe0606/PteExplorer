@@ -9,3 +9,14 @@
 - Do not use Docker for this repository.
 - Keep the CMake configuration portable and maintain build instructions for
   Windows, macOS, and Linux without running other platforms from Windows.
+
+# Mandatory rules
+ - No secret saved in this repo. No key, no certificate, no developer ID ...
+
+ - No GPL code
+
+ - All copyrights and LICENSES must be preserved when files are coming from other projects. The source must be documented with clear attribution.
+
+ - No proprietary code. Open source if compatible with Apache license. 
+
+- When you have finished with the apps that you have launched with computer use, quit them so that we do not have many apps opened

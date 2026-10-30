@@ -6,6 +6,8 @@ use pte_explorer::{
 use std::{cell::Cell, path::PathBuf, rc::Rc, sync::Arc};
 mod explorer_view;
 mod graph_canvas;
+#[cfg(target_os = "macos")]
+mod macos;
 mod memory_window;
 mod panels;
 mod stream;
@@ -109,22 +111,28 @@ fn window_options(title: String, w: f32, h: f32, cx: &App) -> WindowOptions {
     }
 }
 pub fn run(path: Option<PathBuf>) {
+    #[cfg(target_os = "macos")]
+    macos::run(path);
+    #[cfg(not(target_os = "macos"))]
     Application::new().run(move |cx| {
-        cx.open_window(
-            window_options("PTE Explorer".into(), 1500., 940., cx),
-            |_, cx| {
-                cx.new(|cx| {
-                    let mut view = Explorer::empty();
-                    if let Some(path) = path {
-                        view.load(path, cx);
-                    }
-                    view
-                })
-            },
-        )
-        .expect("open GPUI window");
+        open_explorer(path, cx);
         cx.activate(true);
     });
+}
+fn open_explorer(path: Option<PathBuf>, cx: &mut App) -> WindowHandle<Explorer> {
+    cx.open_window(
+        window_options("PTE Explorer".into(), 1500., 940., cx),
+        |_, cx| {
+            cx.new(|cx| {
+                let mut view = Explorer::empty();
+                if let Some(path) = path {
+                    view.load(path, cx);
+                }
+                view
+            })
+        },
+    )
+    .expect("open GPUI window")
 }
 struct Explorer {
     program: Option<Arc<Program>>,

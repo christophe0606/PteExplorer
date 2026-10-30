@@ -31,7 +31,14 @@ New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
 
 cmake --install $buildPath --config Release --prefix $stagingPath
 if ($LASTEXITCODE -ne 0) { throw 'CMake install failed.' }
-if (-not (Test-Path -LiteralPath (Join-Path $stagingPath "bin/$executable") -PathType Leaf)) {
+if ($platform -eq 'macos') {
+    $app = Join-Path $stagingPath 'PTE Explorer.app'
+    if (-not (Test-Path -LiteralPath (Join-Path $app 'Contents/MacOS/pte-explorer') -PathType Leaf)) {
+        throw 'Installed macOS app bundle is missing.'
+    }
+    python3 (Join-Path $repository 'tools/macos-bundle.py') --app $app --notarize-if-configured
+    if ($LASTEXITCODE -ne 0) { throw 'macOS signing/notarization failed.' }
+} elseif (-not (Test-Path -LiteralPath (Join-Path $stagingPath "bin/$executable") -PathType Leaf)) {
     throw "Installed executable is missing: bin/$executable"
 }
 foreach ($file in 'README.md', 'LICENSE', 'THIRD_PARTY.md', 'licenses') {
@@ -50,4 +57,4 @@ try {
 } finally {
     Pop-Location
 }
-Write-Output "Packaged executable: $archive"
+Write-Output "Packaged application: $archive"

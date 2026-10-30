@@ -42,9 +42,24 @@ add_custom_target(pte-explorer ALL
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   BYPRODUCTS "${PTE_EXECUTABLE}"
   USES_TERMINAL VERBATIM)
-add_custom_target(run
-  COMMAND "${PTE_EXECUTABLE}"
-  DEPENDS pte-explorer USES_TERMINAL VERBATIM)
+if(APPLE AND PTE_GUI)
+  find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+  set(PTE_MACOS_APP "${CMAKE_BINARY_DIR}/${PTE_PROFILE}/PTE Explorer.app")
+  add_custom_target(macos-app ALL
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/macos-bundle.py"
+      --executable "${PTE_EXECUTABLE}" --app "${PTE_MACOS_APP}"
+      --version "${PROJECT_VERSION}"
+    DEPENDS pte-explorer VERBATIM)
+  add_custom_target(run
+    COMMAND /usr/bin/open "${PTE_MACOS_APP}"
+    DEPENDS macos-app VERBATIM)
+  install(DIRECTORY "${PTE_MACOS_APP}" DESTINATION . USE_SOURCE_PERMISSIONS)
+else()
+  add_custom_target(run
+    COMMAND "${PTE_EXECUTABLE}"
+    DEPENDS pte-explorer USES_TERMINAL VERBATIM)
+  install(PROGRAMS "${PTE_EXECUTABLE}" DESTINATION bin)
+endif()
 enable_testing()
 add_test(NAME core-tests
   COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PTE_CARGO_TARGET_DIR}/core-tests"
@@ -57,4 +72,3 @@ if(PTE_GUI)
       ${CARGO_EXECUTABLE} test --locked --features ui-tests --bin pte-explorer
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()
-install(PROGRAMS "${PTE_EXECUTABLE}" DESTINATION bin)

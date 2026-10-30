@@ -26,7 +26,7 @@ for details.
 
 ## Downloads and releases
 
-Each native CI build uploads a separate executable archive to the
+Each native CI build uploads a separate application archive to the
 [Build workflow](https://github.com/christophe0606/PteExplorer/actions/workflows/build.yml).
 Open a run and download the archive under **Artifacts** (GitHub sign-in required).
 Artifacts are retained for 30 days and are uploaded before tests, so a successful
@@ -38,12 +38,18 @@ build remains downloadable even if its tests subsequently fail.
 | `pte-explorer-macos-arm64.tar.gz` | macOS on Apple Silicon |
 | `pte-explorer-linux-x64.tar.gz` | Linux x64, built on Ubuntu 24.04 |
 
-Extract the archive and run `bin/pte-explorer.exe` on Windows or
-`bin/pte-explorer` on macOS/Linux inside the extracted folder. Each archive also
-contains this README, the project license, and third-party notices. Bring your
+Extract the archive and run `bin/pte-explorer.exe` on Windows,
+double-click **PTE Explorer.app** on macOS, or run `bin/pte-explorer` on Linux.
+On macOS you can drag the app to Applications; it has its own Dock icon and
+native menu bar, including **PTE Explorer → Quit PTE Explorer** (⌘Q),
+**File → Open…** (⌘O), Close Window (⌘W), and Minimize (⌘M).
+Finder's **Open With → PTE Explorer** opens `.pte` files in the app.
+Each archive also contains this README, the project license, and third-party notices. Bring your
 own `.pte` model. GPU and system-library prerequisites below still apply;
-these archives are executables with documentation, rather than installers.
-The macOS executable is unsigned and is not notarized.
+these archives contain applications and documentation, rather than installers.
+macOS CI archives have an ad hoc signature, which needs no certificate identity.
+Certificate signing and notarization are performed locally using the environment
+configuration below. CI archives are not notarized.
 
 To prepare a release, first commit and push the intended changes, then tag that
 commit with a version such as `v0.1.0` and push the tag:
@@ -103,7 +109,8 @@ path if multiple SDK shader compilers are on `PATH`.
 
 Install full Xcode, launch it to accept its license and install components, and
 select its developer directory. GPUI compiles Metal shaders; command-line tools
-alone may be insufficient. Install CMake. A Metal-capable Mac is required.
+alone may be insufficient. Install CMake and Python 3.9+ (used to assemble the
+app bundle). A Metal-capable Mac is required.
 
 ```sh
 xcode-select --install
@@ -115,8 +122,42 @@ cd PteExplorer
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
-./build/cargo/release/pte-explorer /path/to/model.pte
+open "build/release/PTE Explorer.app"
+# Or open a model through the macOS application launcher:
+open -a "$PWD/build/release/PTE Explorer.app" /path/to/model.pte
 ```
+
+CMake creates a complete `.app` bundle, including its icon and document-type
+registration. Double-click it in Finder or drag it to Applications. For a Debug
+build the bundle is `build/debug/PTE Explorer.app`. Direct `cargo run` remains a
+developer command; use CMake for the standard macOS app.
+
+For distribution signing, set `PTE_MACOS_SIGN_IDENTITY` in your environment to
+the name of a signing identity already installed in your external Keychain.
+No identity is stored in CMake's cache or source files. Without that variable,
+the app receives an ad hoc signature suitable for local use.
+CI always uses an ad hoc signature and never attempts certificate signing or
+notarization, since the runner has no installed certificate identity.
+
+The release packaging script optionally notarizes and staples the installed app
+locally before archiving. Supply a **Developer ID Application** signing identity and
+either `PTE_NOTARY_KEYCHAIN_PROFILE` (an existing external Keychain profile), or
+all of `PTE_NOTARY_KEY_PATH`, `PTE_NOTARY_KEY_ID`, and `PTE_NOTARY_ISSUER`.
+The key path must point outside this repository. Credentials are read from the
+environment at execution time; private keys and certificates are never copied
+into the repository, bundle, or archive. Signing diagnostics are suppressed to
+avoid writing identities to build logs. With notarization configured, packaging
+fails if signing, Apple's acceptance, or stapling fails.
+
+To sign an app extracted from a CI archive on your own Mac, set the signing
+environment variables above and run this from the source checkout:
+
+```sh
+python3 tools/macos-bundle.py --app "/path/to/PTE Explorer.app" --notarize-if-configured
+```
+
+This signs the existing bundle locally; notarization runs only when its
+credentials are configured. Re-archive the app after signing for distribution.
 
 ### Linux (Ubuntu / Debian)
 
@@ -142,7 +183,8 @@ ctest --test-dir build --output-on-failure
 ```
 
 `cmake --build build --target run` opens the app without an initial file.
-`cmake --install build --prefix dist --config Release` installs to `dist/bin`.
+`cmake --install build --prefix dist --config Release` installs the macOS GUI to
+`dist/PTE Explorer.app`; other builds install the executable to `dist/bin`.
 CMake invokes Cargo. No generated schema compiler or C++ project is required.
 Omit `-DCMAKE_BUILD_TYPE=Release` for debug. Multi-configuration generators use
 `--config Release` for Cargo release; other configurations use debug.

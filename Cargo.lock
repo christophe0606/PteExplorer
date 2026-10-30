@@ -4004,6 +4004,7 @@ dependencies = [
  "libc",
  "serde",
  "serde_json",
+ "url",
  "windows 0.61.3",
 ]
 
